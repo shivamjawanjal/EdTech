@@ -1,0 +1,18 @@
+{
+  "name": "Teacher Learning & Productivity Platform",
+  "short_name": "LearnPlatform",
+  "description": "Private learning ecosystem for Mathematics, Science, and Reasoning",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F8FAFC",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -8,7 +8,9 @@ settings = get_settings()
 
 def test_alembic_migration_head_consistency():
     """Verify that Alembic configuration points to valid script directory and current head exists."""
-    alembic_cfg = Config("alembic.ini")
+    from pathlib import Path
+    alembic_ini_path = str(Path(__file__).parent.parent / "alembic.ini")
+    alembic_cfg = Config(alembic_ini_path)
     alembic_cfg.set_main_option("sqlalchemy.url", settings.TEST_SYNC_DATABASE_URL)
 
     # Check that upgrade head runs cleanly without raising CommandError

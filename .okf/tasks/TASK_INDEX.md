@@ -11,8 +11,8 @@ This file tracks the status and assignments of all structured engineering tasks 
 | **`TASK-001`** | Foundational Governance & Documentation Setup | `@Education_CTO_Agent` | Governance | **Done** | MVP Phase 1 |
 | **`TASK-002`** | Product Requirements & Teacher/Student Journey Maps | `@Product_Agent` | Product | **Backlog** | MVP Phase 1 |
 | **`TASK-003`** | Mobile-First UI Tokens & Design System Specs | `@UX_UI_Agent` | UX/UI | **Backlog** | MVP Phase 1 |
-| **`TASK-004`** | PostgreSQL Schema Design & Alembic Scaffolding | `@Database_Agent` | Database | **Backlog** | MVP Phase 1 |
-| **`TASK-005`** | FastAPI Modular Monolith Scaffolding & Auth | `@Backend_Agent` | Backend | **Backlog** | MVP Phase 1 |
+| **`TASK-004`** | PostgreSQL Schema Design & Alembic Scaffolding | `@Database_Agent` | Database | **Done** | MVP Phase 1 |
+| **`TASK-005`** | FastAPI Modular Monolith Scaffolding & Auth | `@Backend_Agent` | Backend | **Done** | MVP Phase 1 |
 | **`TASK-006`** | React + Vite + Tailwind PWA Project Scaffolding | `@Frontend_Agent` | Frontend | **Backlog** | MVP Phase 1 |
 | **`TASK-007`** | Object Storage Pre-Signed URL Media Engine | `@Media_Agent` | Media | **Backlog** | MVP Phase 1 |
 | **`TASK-008`** | Daily Assignment & MCQ Assessment Logic | `@Assessment_Agent` | Assessment | **Backlog** | MVP Phase 1 |

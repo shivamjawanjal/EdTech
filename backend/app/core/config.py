@@ -1,9 +1,12 @@
 from functools import lru_cache
-from typing import Optional
+from typing import List, Optional, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    PROJECT_NAME: str = "Teacher Learning & Productivity Platform"
+    API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
@@ -24,6 +27,29 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Cookie & CSRF Settings
+    COOKIE_SECURE: bool = False  # Set to True in production (HTTPS)
+    COOKIE_SAMESITE: str = "lax"  # "lax", "strict", "none"
+    COOKIE_DOMAIN: Optional[str] = None
+    CSRF_PROTECTION_ENABLED: bool = True
+
+    # CORS Origins
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, (list, str)):
+            return v
+        raise ValueError(v)
 
     # Media Storage Configuration
     STORAGE_PROVIDER: str = "mock"

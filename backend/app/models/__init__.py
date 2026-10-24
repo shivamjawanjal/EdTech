@@ -6,8 +6,9 @@ from app.models.identity import User, StudentProfile, RefreshToken
 # Domain 2: Enrolment & Cohorts (4 tables)
 from app.models.enrolment import Batch, Course, CourseBatch, Enrollment
 
-# Domain 3 & 4: Curriculum Hierarchy & Media (4 tables)
+# Domain 3 & 4: Curriculum Hierarchy & Media (5 tables)
 from app.models.curriculum import Subject, Chapter, Lecture, LectureNote
+from app.models.media import MediaUpload
 
 # Domain 5: Telemetry & Heartbeat (2 tables)
 from app.models.telemetry import VideoProgress, VideoWatchSession
@@ -58,6 +59,7 @@ __all__ = [
     "Chapter",
     "Lecture",
     "LectureNote",
+    "MediaUpload",
     # Domain 5
     "VideoProgress",
     "VideoWatchSession",

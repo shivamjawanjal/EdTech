@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   CheckCircle,
   Clock,
@@ -8,14 +8,17 @@ import {
   FileText,
   ChevronRight,
   ExternalLink,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/common/Card';
 import { HealthBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
+import { TeacherMediaManager } from '../components/media/TeacherMediaManager';
 
 export const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
+  const [showMediaManager, setShowMediaManager] = useState<boolean>(false);
 
   // Mock data clearly isolated for development preview
   const triageStudents = [
@@ -104,6 +107,14 @@ export const TeacherDashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowMediaManager(true)}
+            icon={<Upload className="h-4 w-4" />}
+          >
+            Upload Media
+          </Button>
           <Button size="sm" variant="outline" icon={<Calendar className="h-4 w-4" />}>
             Schedule Class
           </Button>
@@ -322,6 +333,12 @@ export const TeacherDashboard: React.FC = () => {
       <div className="p-3 rounded-xl bg-slate-100 text-center text-[11px] text-slate-500 font-medium">
         [Development Mock Preview] Data presented above represents initial layout scaffolding; live curriculum and grading endpoints will connect in subsequent tasks.
       </div>
+
+      {showMediaManager && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <TeacherMediaManager onClose={() => setShowMediaManager(false)} />
+        </div>
+      )}
     </div>
   );
 };

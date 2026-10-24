@@ -22,9 +22,11 @@ if config.config_file_name is not None:
 # Model metadata for autogenerate support
 target_metadata = Base.metadata
 
-# Override sqlalchemy.url with central application settings
+# Preserve explicitly injected sqlalchemy.url (e.g. for test database), otherwise use default application setting
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
+current_url = config.get_main_option("sqlalchemy.url")
+if not current_url or current_url.startswith("driver://"):
+    config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
 
 
 def run_migrations_offline() -> None:

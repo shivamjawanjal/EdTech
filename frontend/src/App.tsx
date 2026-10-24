@@ -5,6 +5,7 @@ import { useAuth } from './context/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { StudentHome } from './pages/StudentHome';
+import { StudentLectureView } from './pages/StudentLectureView';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { FullPageLoader } from './components/common/LoadingSpinner';
@@ -63,6 +64,14 @@ export const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute requiredRole="student">
             <StudentHome />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/student/lectures/:lectureId"
+        element={
+          <ProtectedRoute requiredRole="student" useShell={false}>
+            <StudentLectureView />
           </ProtectedRoute>
         }
       />

@@ -54,8 +54,12 @@ class Course(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    instructor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Relationships
+    instructor: Mapped[Optional["User"]] = relationship("User", foreign_keys=[instructor_id])
     batch_associations: Mapped[List["CourseBatch"]] = relationship(
         "CourseBatch", back_populates="course", cascade="all, delete-orphan"
     )

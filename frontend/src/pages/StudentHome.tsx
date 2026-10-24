@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   PlayCircle,
   FileText,
@@ -12,10 +13,13 @@ import { useAuth } from '../context/useAuth';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/common/Card';
 import { HealthBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
+import { StudentAttachmentUploader } from '../components/media/StudentAttachmentUploader';
 
 export const StudentHome: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeSubject, setActiveSubject] = useState<'MATH' | 'SCI' | 'REAS'>('MATH');
+  const [showUploader, setShowUploader] = useState<boolean>(false);
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
@@ -114,7 +118,8 @@ export const StudentHome: React.FC = () => {
           <Button
             size="lg"
             variant="primary"
-            className="w-full sm:w-auto shrink-0 touch-target"
+            onClick={() => navigate('/student/lectures/lecture-seed-demo')}
+            className="w-full sm:w-auto shrink-0 touch-target cursor-pointer"
             icon={<PlayCircle className="h-5 w-5" />}
           >
             Watch Lesson Now
@@ -151,7 +156,8 @@ export const StudentHome: React.FC = () => {
             <Button
               size="md"
               variant="outline"
-              className="w-full mt-3 touch-target"
+              onClick={() => setShowUploader(true)}
+              className="w-full mt-3 touch-target cursor-pointer"
               icon={<Camera className="h-4 w-4 text-indigo-600" />}
             >
               Submit Homework Photos
@@ -218,6 +224,20 @@ export const StudentHome: React.FC = () => {
       <div className="p-3 rounded-xl bg-slate-100 text-center text-[11px] text-slate-500 font-medium">
         [Development Mock Preview] Curriculum progression, video player, and camera upload modals will connect in subsequent tasks.
       </div>
+
+      {showUploader && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <StudentAttachmentUploader
+            submissionId="sub-001-demo"
+            pageOrder={1}
+            onCancel={() => setShowUploader(false)}
+            onSuccess={() => {
+              alert('Homework attachment uploaded and verified!');
+              setShowUploader(false);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

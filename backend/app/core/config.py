@@ -52,12 +52,23 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     # Media Storage Configuration
-    STORAGE_PROVIDER: str = "mock"
+    STORAGE_PROVIDER: str = "mock"  # "mock", "s3", "r2"
     S3_BUCKET_NAME: str = "edtech-media-dev"
     S3_ENDPOINT_URL: Optional[str] = None
     S3_ACCESS_KEY_ID: Optional[str] = None
     S3_SECRET_ACCESS_KEY: Optional[str] = None
     S3_REGION: str = "auto"
+    MEDIA_PUBLIC_BASE_URL: Optional[str] = None
+
+    # Signed URL TTL Configuration (seconds)
+    SIGNED_URL_VIDEO_TTL_SECONDS: int = 1800      # 30 minutes for video playback
+    SIGNED_URL_DOWNLOAD_TTL_SECONDS: int = 900    # 15 minutes for notes / attachment download
+    SIGNED_URL_UPLOAD_TTL_SECONDS: int = 900      # 15 minutes for direct upload tickets
+
+    # Media File Size Limits (bytes)
+    MAX_VIDEO_SIZE_BYTES: int = 1610612736        # 1.5 GB for teacher lecture videos
+    MAX_NOTE_SIZE_BYTES: int = 52428800           # 50 MB for lecture note PDFs
+    MAX_ATTACHMENT_SIZE_BYTES: int = 15728640     # 15 MB for student assignment attachments
 
     model_config = SettingsConfigDict(
         env_file=".env",

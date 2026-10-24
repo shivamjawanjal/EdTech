@@ -6,6 +6,13 @@ from app.schemas.auth import (
     UserProfileResponse,
     TokenResponse,
 )
+from app.schemas.media import (
+    MediaUploadInitRequest,
+    MediaUploadInitResponse,
+    MediaUploadCompleteResponse,
+    MediaPlaybackResponse,
+    MediaDownloadResponse,
+)
 
 __all__ = [
     "ErrorResponse",
@@ -16,4 +23,9 @@ __all__ = [
     "UserSummary",
     "UserProfileResponse",
     "TokenResponse",
+    "MediaUploadInitRequest",
+    "MediaUploadInitResponse",
+    "MediaUploadCompleteResponse",
+    "MediaPlaybackResponse",
+    "MediaDownloadResponse",
 ]

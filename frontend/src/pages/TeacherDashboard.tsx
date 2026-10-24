@@ -15,10 +15,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { HealthBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { TeacherMediaManager } from '../components/media/TeacherMediaManager';
+import { TeacherAssessmentConsole } from '../components/assessment/TeacherAssessmentConsole';
 
 export const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
   const [showMediaManager, setShowMediaManager] = useState<boolean>(false);
+  const [showAssessmentConsole, setShowAssessmentConsole] = useState<boolean>(false);
 
   // Mock data clearly isolated for development preview
   const triageStudents = [
@@ -118,8 +120,13 @@ export const TeacherDashboard: React.FC = () => {
           <Button size="sm" variant="outline" icon={<Calendar className="h-4 w-4" />}>
             Schedule Class
           </Button>
-          <Button size="sm" variant="primary" icon={<FileText className="h-4 w-4" />}>
-            New Assignment
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setShowAssessmentConsole(true)}
+            icon={<FileText className="h-4 w-4" />}
+          >
+            Assessments & Grading
           </Button>
         </div>
       </div>
@@ -257,7 +264,7 @@ export const TeacherDashboard: React.FC = () => {
                     </p>
                   </div>
 
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={() => setShowAssessmentConsole(true)}>
                     Grade <ChevronRight className="h-3.5 w-3.5 ml-1" />
                   </Button>
                 </div>
@@ -337,6 +344,12 @@ export const TeacherDashboard: React.FC = () => {
       {showMediaManager && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
           <TeacherMediaManager onClose={() => setShowMediaManager(false)} />
+        </div>
+      )}
+
+      {showAssessmentConsole && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <TeacherAssessmentConsole onClose={() => setShowAssessmentConsole(false)} />
         </div>
       )}
     </div>

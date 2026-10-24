@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { StudentHome } from './pages/StudentHome';
 import { StudentLectureView } from './pages/StudentLectureView';
+import { StudentQuizView } from './pages/StudentQuizView';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { FullPageLoader } from './components/common/LoadingSpinner';
@@ -72,6 +73,14 @@ export const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute requiredRole="student" useShell={false}>
             <StudentLectureView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/student/tests/:testId"
+        element={
+          <ProtectedRoute requiredRole="student" useShell={false}>
+            <StudentQuizView />
           </ProtectedRoute>
         }
       />

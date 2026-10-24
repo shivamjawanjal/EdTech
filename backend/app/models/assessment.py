@@ -47,6 +47,7 @@ class Assignment(Base, TimestampMixin):
     deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     allow_late_submission: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     late_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
     lecture: Mapped["Lecture"] = relationship("Lecture", back_populates="assignments")
@@ -95,6 +96,7 @@ class Submission(Base, TimestampMixin):
     attempt_number: Mapped[int] = mapped_column(SmallInteger, default=1, nullable=False)
     is_latest: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="submitted", nullable=False)
+    student_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
@@ -105,6 +107,8 @@ class Submission(Base, TimestampMixin):
     evaluated_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
+    is_released: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     assignment: Mapped["Assignment"] = relationship("Assignment", back_populates="submissions")
@@ -183,6 +187,9 @@ class Test(Base, TimestampMixin):
     deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     max_attempts: Mapped[int] = mapped_column(SmallInteger, default=1, nullable=False)
     solutions_released_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    results_released_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

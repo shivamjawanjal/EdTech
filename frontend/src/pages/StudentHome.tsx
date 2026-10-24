@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlayCircle,
@@ -8,18 +8,42 @@ import {
   AlertCircle,
   ChevronRight,
   Camera,
+  CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/common/Card';
 import { HealthBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { StudentAttachmentUploader } from '../components/media/StudentAttachmentUploader';
+import { StudentAssignmentSubmitModal } from '../components/assessment/StudentAssignmentSubmitModal';
+import { assessmentService } from '../api/assessmentService';
+import type { Assignment, Test } from '../types/assessment';
 
 export const StudentHome: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeSubject, setActiveSubject] = useState<'MATH' | 'SCI' | 'REAS'>('MATH');
   const [showUploader, setShowUploader] = useState<boolean>(false);
+  const [liveAssignments, setLiveAssignments] = useState<Assignment[]>([]);
+  const [liveTests, setLiveTests] = useState<Test[]>([]);
+  const [selectedAssignmentModal, setSelectedAssignmentModal] = useState<Assignment | null>(null);
+
+  useEffect(() => {
+    loadAssessments();
+  }, []);
+
+  const loadAssessments = async () => {
+    try {
+      const [asns, tsts] = await Promise.all([
+        assessmentService.getAssignments(),
+        assessmentService.getTests(),
+      ]);
+      setLiveAssignments(asns);
+      setLiveTests(tsts);
+    } catch (err) {
+      console.error('Failed to load student assessments:', err);
+    }
+  };
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
@@ -130,75 +154,147 @@ export const StudentHome: React.FC = () => {
       {/* Two Column Grid: Today's Homework & Upcoming Assessments */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Homework Submission Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                <AlertCircle className="h-3.5 w-3.5 text-amber-600" /> Due Today, 8:00 PM
-              </span>
-              <span className="text-xs text-slate-400">10 Marks</span>
-            </div>
-            <CardTitle className="pt-1.5">HW 03: Quadratic Problem Set</CardTitle>
-            <CardDescription>Questions 1 through 8 from textbook page 48.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-xs text-slate-600">
-              <div className="flex items-center justify-between">
-                <span>Status:</span>
-                <span className="font-semibold text-amber-600">PENDING SUBMISSION</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Max File Size: 15MB</span>
-                <span>Camera photos / PDF</span>
-              </div>
-            </div>
+        {(() => {
+          const currentAsn = liveAssignments[0];
+          const hasSubmission = !!currentAsn?.my_submission;
+          const isEvaluated = currentAsn?.my_submission?.is_evaluated;
+          const isReleased = currentAsn?.my_submission?.is_released;
 
-            <Button
-              size="md"
-              variant="outline"
-              onClick={() => setShowUploader(true)}
-              className="w-full mt-3 touch-target cursor-pointer"
-              icon={<Camera className="h-4 w-4 text-indigo-600" />}
-            >
-              Submit Homework Photos
-            </Button>
-          </CardContent>
-        </Card>
+          return (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-600" />{' '}
+                    {currentAsn?.deadline
+                      ? `Due ${new Date(currentAsn.deadline).toLocaleDateString()}`
+                      : 'Due Today, 8:00 PM'}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {currentAsn?.max_marks || 10} Marks
+                  </span>
+                </div>
+                <CardTitle className="pt-1.5">
+                  {currentAsn?.title || 'HW 03: Quadratic Problem Set'}
+                </CardTitle>
+                <CardDescription>
+                  {currentAsn?.instructions || 'Questions 1 through 8 from textbook page 48.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-xs text-slate-600">
+                  <div className="flex items-center justify-between">
+                    <span>Status:</span>
+                    <span
+                      className={`font-semibold ${
+                        isEvaluated && isReleased
+                          ? 'text-emerald-700'
+                          : hasSubmission
+                          ? 'text-indigo-600'
+                          : 'text-amber-600'
+                      }`}
+                    >
+                      {isEvaluated && isReleased
+                        ? `EVALUATED (${currentAsn?.my_submission?.obtained_marks}/${currentAsn?.max_marks})`
+                        : hasSubmission
+                        ? 'SUBMITTED'
+                        : 'PENDING SUBMISSION'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Max File Size: 15MB</span>
+                    <span>Camera photos / PDF</span>
+                  </div>
+                </div>
+
+                <Button
+                  size="md"
+                  variant="outline"
+                  onClick={() => {
+                    if (currentAsn) {
+                      setSelectedAssignmentModal(currentAsn);
+                    } else {
+                      setShowUploader(true);
+                    }
+                  }}
+                  className="w-full mt-3 touch-target cursor-pointer"
+                  icon={
+                    hasSubmission ? (
+                      <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <Camera className="h-4 w-4 text-indigo-600" />
+                    )
+                  }
+                >
+                  {hasSubmission ? 'View / Update Submission' : 'Submit Homework'}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Milestone Test Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                <Clock className="h-3.5 w-3.5 text-indigo-600" /> Timed Quiz
-              </span>
-              <span className="text-xs text-slate-400">5 Questions • 20m</span>
-            </div>
-            <CardTitle className="pt-1.5">Chapter 2 Milestone Test</CardTitle>
-            <CardDescription>Objective MCQ test with instant automated scoring.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-xs text-slate-600">
-              <div className="flex items-center justify-between">
-                <span>Pass Requirement:</span>
-                <span className="font-semibold text-slate-900">40% (2/5 Marks)</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Single Attempt</span>
-                <span>Deadline: Tomorrow</span>
-              </div>
-            </div>
+        {(() => {
+          const currentTest = liveTests[0];
+          return (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                    <Clock className="h-3.5 w-3.5 text-indigo-600" /> Timed Quiz
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {currentTest ? `${currentTest.question_count} Qs • ${currentTest.duration_minutes}m` : '5 Questions • 20m'}
+                  </span>
+                </div>
+                <CardTitle className="pt-1.5">
+                  {currentTest?.title || 'Chapter 2 Milestone Test'}
+                </CardTitle>
+                <CardDescription>
+                  {currentTest?.description || 'Objective MCQ test with instant automated scoring.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-xs text-slate-600">
+                  <div className="flex items-center justify-between">
+                    <span>Pass Requirement:</span>
+                    <span className="font-semibold text-slate-900">
+                      {currentTest?.pass_percentage || 40}% Marks
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>
+                      {currentTest ? `${currentTest.max_attempts} Attempt(s)` : 'Single Attempt'}
+                    </span>
+                    <span>
+                      {currentTest?.my_best_score !== null && currentTest?.my_best_score !== undefined
+                        ? `Best Score: ${currentTest.my_best_score}`
+                        : 'Not Attempted'}
+                    </span>
+                  </div>
+                </div>
 
-            <Button
-              size="md"
-              variant="secondary"
-              className="w-full mt-3 touch-target"
-              icon={<ChevronRight className="h-4 w-4" />}
-            >
-              Start Timed Test
-            </Button>
-          </CardContent>
-        </Card>
+                <Button
+                  size="md"
+                  variant="secondary"
+                  onClick={() => {
+                    if (currentTest) {
+                      navigate(`/student/tests/${currentTest.id}`);
+                    }
+                  }}
+                  className="w-full mt-3 touch-target cursor-pointer font-bold"
+                  icon={<ChevronRight className="h-4 w-4" />}
+                >
+                  {currentTest?.active_attempt_id
+                    ? 'Resume Timed Quiz'
+                    : currentTest?.my_attempts_count
+                    ? 'Retake / Review Quiz'
+                    : 'Start Timed Test'}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })()}
       </div>
 
       {/* Live Class Notice Banner */}
@@ -221,9 +317,16 @@ export const StudentHome: React.FC = () => {
         </Button>
       </div>
 
-      <div className="p-3 rounded-xl bg-slate-100 text-center text-[11px] text-slate-500 font-medium">
-        [Development Mock Preview] Curriculum progression, video player, and camera upload modals will connect in subsequent tasks.
-      </div>
+      {selectedAssignmentModal && (
+        <StudentAssignmentSubmitModal
+          assignment={selectedAssignmentModal}
+          onClose={() => setSelectedAssignmentModal(null)}
+          onSubmitted={() => {
+            loadAssessments();
+            setSelectedAssignmentModal(null);
+          }}
+        />
+      )}
 
       {showUploader && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">

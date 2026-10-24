@@ -15,7 +15,7 @@ This file tracks the status and assignments of all structured engineering tasks 
 | **`TASK-005`** | FastAPI Modular Monolith Scaffolding & Auth | `@Backend_Agent` | Backend | **Done** | MVP Phase 1 |
 | **`TASK-006`** | React + Vite + Tailwind PWA Project Scaffolding | `@Frontend_Agent` | Frontend | **Done** | MVP Phase 1 |
 | **`TASK-007`** | Object Storage Pre-Signed URL Media Engine | `@Media_Agent` | Media | **Done** | MVP Phase 1 |
-| **`TASK-008`** | Daily Assignment & MCQ Assessment Logic | `@Assessment_Agent` | Assessment | **Backlog** | MVP Phase 1 |
+| **`TASK-008`** | Daily Assignment & MCQ Assessment Logic | `@Assessment_Agent` | Assessment | **Done** | MVP Phase 1 |
 | **`TASK-009`** | Rule-Based Student Health & Diagnostic Engine | `@Analytics_Agent` | Analytics | **Backlog** | MVP Phase 1 |
 | **`TASK-010`** | Test Strategy & 150-Student Fixture Suite | `@QA_Agent` | QA | **Backlog** | MVP Phase 1 |
 | **`TASK-011`** | CLI Toolchain & Cost-Conscious CI/CD | `@DevOps_Agent` | DevOps | **Backlog** | MVP Phase 1 |

@@ -178,50 +178,75 @@ export const StudentQuizView: React.FC = () => {
 
   // 1. RESULT SCREEN
   if (result) {
+    const isUnreleased = result.results_released === false;
+
     return (
       <div className="max-w-3xl mx-auto my-6 space-y-6">
         <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-md text-center space-y-4">
           <div
             className={`flex h-16 w-16 items-center justify-center rounded-2xl mx-auto ${
-              result.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+              isUnreleased
+                ? 'bg-indigo-100 text-indigo-700'
+                : result.passed
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-rose-100 text-rose-700'
             }`}
           >
             <Award className="h-9 w-9" />
           </div>
 
-          <div>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
-                result.passed
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : 'bg-rose-100 text-rose-800'
-              }`}
-            >
-              {result.passed ? 'Passed Successfully' : 'Needs Improvement'}
-            </span>
-            <h1 className="text-2xl font-black text-slate-900 sm:text-3xl mt-2">
-              {result.score} / {result.total_marks} Marks
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Score: {result.percentage}% • Pass Requirement: {test.pass_percentage}%
-            </p>
-          </div>
+          {isUnreleased ? (
+            <div>
+              <span className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800">
+                Attempt Submitted
+              </span>
+              <h1 className="text-2xl font-black text-slate-900 sm:text-3xl mt-2">
+                Assessment Completed
+              </h1>
+              <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto">
+                Your responses have been securely recorded. Scores and performance analytics will be released by the teacher once the assessment window concludes
+                {result.results_released_at
+                  ? ` on ${new Date(result.results_released_at).toLocaleString()}`
+                  : '.'}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                  result.passed
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                {result.passed ? 'Passed Successfully' : 'Needs Improvement'}
+              </span>
+              <h1 className="text-2xl font-black text-slate-900 sm:text-3xl mt-2">
+                {result.score} / {result.total_marks} Marks
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Score: {result.percentage}% • Pass Requirement: {test.pass_percentage}%
+              </p>
+            </div>
+          )}
 
-          {/* Breakdown Pills */}
-          <div className="grid grid-cols-3 gap-3 max-w-md mx-auto pt-2">
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
-              <span className="text-xl font-bold text-emerald-800 block">{result.correct_count}</span>
-              <span className="text-[11px] font-semibold text-emerald-600">Correct</span>
+          {/* Breakdown Pills (only when released) */}
+          {!isUnreleased && (
+            <div className="grid grid-cols-3 gap-3 max-w-md mx-auto pt-2">
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
+                <span className="text-xl font-bold text-emerald-800 block">{result.correct_count}</span>
+                <span className="text-[11px] font-semibold text-emerald-600">Correct</span>
+              </div>
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-100 text-center">
+                <span className="text-xl font-bold text-rose-800 block">{result.incorrect_count}</span>
+                <span className="text-[11px] font-semibold text-rose-600">Incorrect</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                <span className="text-xl font-bold text-slate-700 block">{result.unattempted_count}</span>
+                <span className="text-[11px] font-semibold text-slate-500">Unattempted</span>
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-100 text-center">
-              <span className="text-xl font-bold text-rose-800 block">{result.incorrect_count}</span>
-              <span className="text-[11px] font-semibold text-rose-600">Incorrect</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-              <span className="text-xl font-bold text-slate-700 block">{result.unattempted_count}</span>
-              <span className="text-[11px] font-semibold text-slate-500">Unattempted</span>
-            </div>
-          </div>
+          )}
 
           {/* Solutions status */}
           {!result.solutions_released ? (

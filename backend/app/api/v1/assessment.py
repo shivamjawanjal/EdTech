@@ -639,6 +639,15 @@ async def submit_assignment(
             )
         sub_status = "late"
 
+    # Advisory lock to serialize competing submission requests even when 0 rows exist yet
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtext(f"assignment_sub:{assignment.id}:{current_user.id}")
+            )
+        )
+    )
+
     # Check for existing submissions
     existing_stmt = (
         select(Submission)
@@ -757,11 +766,23 @@ async def get_submission_queue(
     subs_res = await db.execute(subs_stmt)
     submissions = subs_res.scalars().all()
 
-    # Calculate aggregate counts
-    submitted_count = len(submissions)
-    evaluated_count = sum(1 for s in submissions if s.is_evaluated)
-    pending_count = sum(1 for s in submissions if not s.is_evaluated)
-    late_count = sum(1 for s in submissions if s.status == "late")
+    # Calculate true aggregate counts across all latest submissions regardless of status_filter
+    agg_stmt = select(
+        func.count(Submission.id),
+        func.count(Submission.id).filter(Submission.is_evaluated == True),
+        func.count(Submission.id).filter(Submission.is_evaluated == False),
+        func.count(Submission.id).filter(Submission.status == "late"),
+    ).where(
+        Submission.assignment_id == assignment.id,
+        Submission.is_latest == True,
+    )
+    agg_res = await db.execute(agg_stmt)
+    total_latest_subs, agg_evaluated, agg_pending, agg_late = agg_res.one()
+
+    submitted_count = total_latest_subs or 0
+    evaluated_count = agg_evaluated or 0
+    pending_count = agg_pending or 0
+    late_count = agg_late or 0
     missing_count = max(0, total_enrolled - submitted_count)
 
     sub_responses = []
@@ -1031,6 +1052,79 @@ async def release_assignment_grades(
     return MessageResponse(
         message=f"Grades successfully released for {result.rowcount} evaluated submission(s)",
         detail=str(result.rowcount),
+    )
+
+
+@router.post(
+    "/submissions/{submission_id}/request-resubmission",
+    response_model=SubmissionResponse,
+    summary="Request student to resubmit assignment (Teacher)",
+)
+async def request_resubmission(
+    submission_id: uuid.UUID,
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(Submission)
+        .where(Submission.id == submission_id)
+        .options(
+            selectinload(Submission.assignment)
+            .selectinload(Assignment.lecture)
+            .selectinload(Lecture.chapter)
+            .selectinload(Chapter.subject)
+            .selectinload(Subject.course),
+            selectinload(Submission.attachments),
+            selectinload(Submission.student),
+        )
+        .with_for_update()
+    )
+    res = await db.execute(stmt)
+    submission = res.scalars().first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    course = submission.assignment.lecture.chapter.subject.course
+    verify_teacher_ownership(current_user, course)
+
+    submission.status = "resubmission_requested"
+    await db.commit()
+    await db.refresh(submission)
+
+    student_name = (
+        submission.student.full_name
+        if submission.student and submission.student.full_name
+        else (submission.student.email if submission.student else "Student")
+    )
+
+    return SubmissionResponse(
+        id=submission.id,
+        assignment_id=submission.assignment_id,
+        student_id=submission.student_id,
+        attempt_number=submission.attempt_number,
+        is_latest=submission.is_latest,
+        status=submission.status,
+        student_content=submission.student_content,
+        submitted_at=submission.submitted_at,
+        is_evaluated=submission.is_evaluated,
+        obtained_marks=submission.obtained_marks,
+        teacher_feedback=submission.teacher_feedback,
+        evaluated_at=submission.evaluated_at,
+        is_released=submission.is_released,
+        released_at=submission.released_at,
+        student_name=student_name,
+        attachments=[
+            SubmissionAttachmentResponse(
+                id=att.id,
+                s3_key=att.s3_key,
+                file_name=att.file_name,
+                file_size_bytes=att.file_size_bytes,
+                mime_type=att.mime_type,
+                page_order=att.page_order,
+                created_at=att.created_at,
+            )
+            for att in submission.attachments
+        ],
     )
 
 
@@ -1519,6 +1613,15 @@ async def start_test_attempt(
             detail="Test deadline has passed. New attempts cannot be started.",
         )
 
+    # Advisory lock to serialize competing attempt requests even when 0 rows exist yet
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtext(f"test_attempt:{test.id}:{current_user.id}")
+            )
+        )
+    )
+
     # Check for active / ongoing attempt within grace period
     active_stmt = (
         select(TestAttempt)
@@ -1725,12 +1828,39 @@ async def submit_test_attempt(
 
     test = attempt.test
     now = utc_now()
+    results_released = (
+        test.results_released_at is None or now >= test.results_released_at
+    )
     solutions_released = (
-        test.solutions_released_at is not None and now >= test.solutions_released_at
+        results_released
+        and test.solutions_released_at is not None
+        and now >= test.solutions_released_at
     )
 
     # Idempotent response if already submitted
     if attempt.is_completed:
+        if not results_released:
+            return AttemptResultResponse(
+                attempt_id=attempt.id,
+                test_id=test.id,
+                attempt_number=attempt.attempt_number,
+                is_completed=True,
+                score=Decimal("0.00"),
+                total_marks=test.total_marks,
+                percentage=Decimal("0.00"),
+                passed=False,
+                total_questions=attempt.total_questions_count,
+                correct_count=0,
+                incorrect_count=0,
+                unattempted_count=0,
+                started_at=attempt.started_at,
+                submitted_at=attempt.submitted_at,
+                solutions_released=False,
+                results_released=False,
+                results_released_at=test.results_released_at,
+                answers=None,
+            )
+
         percentage = (
             Decimal("0.00")
             if test.total_marks == 0
@@ -1782,6 +1912,8 @@ async def submit_test_attempt(
             started_at=attempt.started_at,
             submitted_at=attempt.submitted_at,
             solutions_released=solutions_released,
+            results_released=True,
+            results_released_at=test.results_released_at,
             answers=answers_breakdown,
         )
 
@@ -1847,6 +1979,28 @@ async def submit_test_attempt(
     await db.commit()
     await db.refresh(attempt)
 
+    if not results_released:
+        return AttemptResultResponse(
+            attempt_id=attempt.id,
+            test_id=test.id,
+            attempt_number=attempt.attempt_number,
+            is_completed=True,
+            score=Decimal("0.00"),
+            total_marks=test.total_marks,
+            percentage=Decimal("0.00"),
+            passed=False,
+            total_questions=len(questions),
+            correct_count=0,
+            incorrect_count=0,
+            unattempted_count=0,
+            started_at=attempt.started_at,
+            submitted_at=attempt.submitted_at,
+            solutions_released=False,
+            results_released=False,
+            results_released_at=test.results_released_at,
+            answers=None,
+        )
+
     return AttemptResultResponse(
         attempt_id=attempt.id,
         test_id=test.id,
@@ -1863,6 +2017,9 @@ async def submit_test_attempt(
         started_at=attempt.started_at,
         submitted_at=attempt.submitted_at,
         solutions_released=solutions_released,
+        results_released=True,
+        results_released_at=test.results_released_at,
+        answers=None,
     )
 
 
@@ -1949,8 +2106,13 @@ async def get_my_test_attempts(
         raise HTTPException(status_code=404, detail="Test not found")
 
     now = utc_now()
+    results_released = (
+        test.results_released_at is None or now >= test.results_released_at
+    )
     solutions_released = (
-        test.solutions_released_at is not None and now >= test.solutions_released_at
+        results_released
+        and test.solutions_released_at is not None
+        and now >= test.solutions_released_at
     )
 
     attempts_stmt = (
@@ -1967,30 +2129,57 @@ async def get_my_test_attempts(
 
     results = []
     for att in attempts:
-        percentage = (
-            Decimal("0.00")
-            if test.total_marks == 0
-            else (att.score / Decimal(test.total_marks)) * Decimal("100.00")
-        )
-        passed = att.score >= Decimal(test.total_marks * test.pass_percentage / 100)
-
-        results.append(
-            AttemptResultResponse(
-                attempt_id=att.id,
-                test_id=test.id,
-                attempt_number=att.attempt_number,
-                is_completed=True,
-                score=att.score,
-                total_marks=test.total_marks,
-                percentage=round(percentage, 2),
-                passed=passed,
-                total_questions=att.total_questions_count,
-                correct_count=att.correct_answers_count,
-                incorrect_count=att.incorrect_answers_count,
-                unattempted_count=att.unattempted_count,
-                started_at=att.started_at,
-                submitted_at=att.submitted_at,
-                solutions_released=solutions_released,
+        if not results_released:
+            results.append(
+                AttemptResultResponse(
+                    attempt_id=att.id,
+                    test_id=test.id,
+                    attempt_number=att.attempt_number,
+                    is_completed=True,
+                    score=Decimal("0.00"),
+                    total_marks=test.total_marks,
+                    percentage=Decimal("0.00"),
+                    passed=False,
+                    total_questions=att.total_questions_count,
+                    correct_count=0,
+                    incorrect_count=0,
+                    unattempted_count=0,
+                    started_at=att.started_at,
+                    submitted_at=att.submitted_at,
+                    solutions_released=False,
+                    results_released=False,
+                    results_released_at=test.results_released_at,
+                    answers=None,
+                )
             )
-        )
+        else:
+            percentage = (
+                Decimal("0.00")
+                if test.total_marks == 0
+                else (att.score / Decimal(test.total_marks)) * Decimal("100.00")
+            )
+            passed = att.score >= Decimal(test.total_marks * test.pass_percentage / 100)
+
+            results.append(
+                AttemptResultResponse(
+                    attempt_id=att.id,
+                    test_id=test.id,
+                    attempt_number=att.attempt_number,
+                    is_completed=True,
+                    score=att.score,
+                    total_marks=test.total_marks,
+                    percentage=round(percentage, 2),
+                    passed=passed,
+                    total_questions=att.total_questions_count,
+                    correct_count=att.correct_answers_count,
+                    incorrect_count=att.incorrect_answers_count,
+                    unattempted_count=att.unattempted_count,
+                    started_at=att.started_at,
+                    submitted_at=att.submitted_at,
+                    solutions_released=solutions_released,
+                    results_released=True,
+                    results_released_at=test.results_released_at,
+                    answers=None,
+                )
+            )
     return results

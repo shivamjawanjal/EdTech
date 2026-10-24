@@ -33,6 +33,7 @@ export const StudentAssignmentSubmitModal: React.FC<StudentAssignmentSubmitModal
 
   const isEvaluated = activeSubmission?.is_evaluated || false;
   const isReleased = activeSubmission?.is_released || false;
+  const isLocked = isEvaluated && activeSubmission?.status !== 'resubmission_requested';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +98,13 @@ export const StudentAssignmentSubmitModal: React.FC<StudentAssignmentSubmitModal
           </div>
         )}
 
+        {/* Resubmission requested banner */}
+        {activeSubmission?.status === 'resubmission_requested' && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <strong>Resubmission Requested:</strong> The teacher has requested revisions for your submission. Please update your response or attachments below and click &quot;Submit Revision&quot;.
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -112,7 +120,7 @@ export const StudentAssignmentSubmitModal: React.FC<StudentAssignmentSubmitModal
             <textarea
               rows={4}
               value={content}
-              disabled={isEvaluated}
+              disabled={isLocked}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Type your answer, formulas, or explanation here..."
               className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-indigo-600 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-500"
@@ -145,7 +153,7 @@ export const StudentAssignmentSubmitModal: React.FC<StudentAssignmentSubmitModal
                 </div>
               )}
 
-              {!isEvaluated && (
+              {!isLocked && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -178,7 +186,7 @@ export const StudentAssignmentSubmitModal: React.FC<StudentAssignmentSubmitModal
             <Button size="sm" variant="outline" type="button" onClick={onClose}>
               Close
             </Button>
-            {!isEvaluated && (
+            {!isLocked && (
               <Button
                 size="sm"
                 variant="primary"
@@ -186,7 +194,13 @@ export const StudentAssignmentSubmitModal: React.FC<StudentAssignmentSubmitModal
                 disabled={submitting}
                 icon={<Send className="h-4 w-4" />}
               >
-                {submitting ? 'Submitting...' : activeSubmission ? 'Update Response' : 'Submit Homework'}
+                {submitting
+                  ? 'Submitting...'
+                  : activeSubmission?.status === 'resubmission_requested'
+                  ? 'Submit Revision'
+                  : activeSubmission
+                  ? 'Update Response'
+                  : 'Submit Homework'}
               </Button>
             )}
           </div>

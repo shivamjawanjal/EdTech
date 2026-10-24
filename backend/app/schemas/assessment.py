@@ -242,4 +242,6 @@ class AttemptResultResponse(BaseModel):
     started_at: datetime
     submitted_at: Optional[datetime] = None
     solutions_released: bool
+    results_released: bool = True
+    results_released_at: Optional[datetime] = None
     answers: Optional[List[AnswerDetailItem]] = None

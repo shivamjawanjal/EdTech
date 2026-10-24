@@ -123,4 +123,50 @@ The platform serves approximately 150 students and 1 primary teacher. All gradin
 - [x] **Teacher Scoping**: Teachers cannot manage assignments, tests, or submissions belonging to courses taught by other instructors.
 - [x] **Solution Leakage Prevention**: `correct_option` and `solution_explanation` are stripped from student responses until `solutions_released_at`.
 - [x] **Grading Privacy**: Marks and teacher feedback are hidden (`null`) from students until `is_released=True`.
-- [x] **Concurrency & Attempt Limits**: Attempt counts are validated under transactional row locks to prevent duplicate submissions exceeding `max_attempts`.
+- [x] **Concurrency & Attempt Limits**: Attempt counts are validated under transactional advisory locks (`pg_advisory_xact_lock`) even when zero attempt rows exist.
+
+---
+
+## 6. Audit Findings & Resolution Summary
+
+### 1. Potential Result-Release Inconsistency
+- **Finding**: Individual submission grading updates release flags, while a separate batch-release endpoint exists. Grading without immediate release must never expose marks or feedback.
+- **Resolution**:
+  - `grade_submission` accepts `is_released: bool` (defaulting to unreleased if preferred for batch release).
+  - All student queries (`list_assignments`, `get_assignment`, and `get_my_submissions`) strictly redact marks, feedback, and evaluated timestamp whenever `is_released == False`.
+  - Batch release endpoint `/api/v1/assessment/assignments/{assignment_id}/release-grades` atomically flips all evaluated submissions to `is_released = True`.
+
+### 2. Attempt-Limit Concurrency
+- **Finding**: Transactional locks on nonexistent attempt rows return 0 rows in PostgreSQL MVCC, failing to serialize concurrent requests racing to create attempt #1.
+- **Resolution**:
+  - Implemented PostgreSQL transactional advisory locks (`pg_advisory_xact_lock(hashtext(f"test_attempt:{test.id}:{student.id}"))` in `start_test_attempt` and `hashtext(f"assignment_sub:{assignment.id}:{student.id}"))` in `submit_assignment`).
+  - Serializes all concurrent attempt initialization requests for that user and entity before any query executes, guaranteeing attempt limits are never bypassed.
+
+### 3. Late-Submission Policy
+- **Finding**: Ensure `deadline`, `late_deadline`, and resubmission of evaluated submissions are consistent across APIs and UI, and analytics does not classify accepted late work as missing.
+- **Resolution**:
+  - Standard submissions before `deadline` are marked `"submitted"`. Submissions between `deadline` and `late_deadline` (when enabled) are accepted and marked `"late"`.
+  - Accepted late work has `is_latest == True`, correctly included in `submitted_count`, and therefore subtracted from `missing_count = max(0, total_enrolled - submitted_count)`.
+  - Evaluated submissions are immutable unless the teacher issues a resubmission request (`/api/v1/assessment/submissions/{id}/request-resubmission`). In the student UI, `StudentAssignmentSubmitModal.tsx` enables editing and submission when `status == 'resubmission_requested'`.
+
+### 4. Assessment Reporting Accuracy
+- **Finding**: Check that pending, evaluated, late, and missing counts are calculated from the correct latest submission and active enrollment—not inflated by older attempts or distorted by filters.
+- **Resolution**:
+  - In `get_submission_queue`, aggregate metrics (`submitted_count`, `evaluated_count`, `pending_count`, `late_count`, `missing_count`) are calculated via an independent database query across all latest submissions (`is_latest == True`), ensuring header metrics remain accurate and invariant under UI status filters (`?status=pending`, etc.).
+
+### 5. Question Privacy & Scoring
+- **Finding**: Pre-release answer redaction must be enforced in every student endpoint, including attempt responses and result breakdowns, and scoring must use the question configuration applicable to that attempt.
+- **Resolution**:
+  - In `GET /tests/{id}`, student question responses redact `correct_option` and `solution_explanation` until `solutions_released_at`.
+  - In `POST /tests/attempts/{id}/submit` and `GET /tests/{id}/attempts/my`, if `results_released_at` is in the future, overall score, percentage, and passed status are redacted (`0.00`, `False`, `answers=None`).
+  - In `StudentQuizView.tsx`, unreleased test results display a "Assessment Completed - Results Pending Release" status card rather than misleading 0 marks.
+  - Server-authoritative scoring computes marks and negative marks from the individual test questions linked to that attempt.
+
+---
+
+## 7. Explicit Documented Limitations (Preserved)
+
+1. **Live S3/R2 Storage Integration Tests**: Remain skipped in offline development environments when live Cloudflare R2 / AWS S3 credentials are not configured in `.env`.
+2. **Question Randomization**: Question randomization / shuffling per student attempt is not implemented in MVP scope (questions are ordered by `order_index`).
+3. **Teacher UI Question Types**: The teacher UI console exposes single-choice A-D multiple choice questions; numerical and multi-select question types are not exposed in the teacher console.
+

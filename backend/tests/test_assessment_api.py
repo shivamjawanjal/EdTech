@@ -742,3 +742,186 @@ async def test_cross_student_attempt_anti_idor(
         headers=auth_header(other_student),
     )
     assert hack_submit.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_delayed_result_release_redacts_marks_and_answers(
+    client: AsyncClient, db_session: AsyncSession, assessment_fixture: dict
+):
+    student = assessment_fixture["student"]
+    chapter = assessment_fixture["chapter"]
+
+    # Test with results_released_at set in the FUTURE
+    test = Test(
+        chapter_id=chapter.id,
+        title="Delayed Release Test",
+        duration_minutes=15,
+        total_marks=10,
+        deadline=utc_now() + timedelta(days=1),
+        is_published=True,
+        results_released_at=utc_now() + timedelta(days=2),
+        solutions_released_at=utc_now() + timedelta(days=3),
+    )
+    db_session.add(test)
+    await db_session.flush()
+
+    q = Question(
+        test_id=test.id,
+        question_text="Q1",
+        options=[{"key": "A", "text": "Correct A"}],
+        correct_option="A",
+        marks=10,
+    )
+    db_session.add(q)
+    await db_session.commit()
+
+    # Student starts and answers
+    start_res = await client.post(
+        f"/api/v1/assessment/tests/{test.id}/attempts/start",
+        headers=auth_header(student),
+    )
+    attempt_id = start_res.json()["attempt_id"]
+
+    await client.post(
+        f"/api/v1/assessment/tests/attempts/{attempt_id}/save-answer",
+        json={"question_id": str(q.id), "selected_option": "A"},
+        headers=auth_header(student),
+    )
+
+    # Submit attempt -> score and answers must be redacted because results are not released yet
+    sub_res = await client.post(
+        f"/api/v1/assessment/tests/attempts/{attempt_id}/submit",
+        headers=auth_header(student),
+    )
+    assert sub_res.status_code == 200
+    data = sub_res.json()
+    assert data["results_released"] is False
+    assert Decimal(str(data["score"])) == Decimal("0.00")
+    assert Decimal(str(data["percentage"])) == Decimal("0.00")
+    assert data["passed"] is False
+    assert data["answers"] is None
+    assert data["results_released_at"] is not None
+
+    # Student views attempt history -> must also be redacted
+    my_att_res = await client.get(
+        f"/api/v1/assessment/tests/{test.id}/attempts/my",
+        headers=auth_header(student),
+    )
+    assert my_att_res.status_code == 200
+    my_data = my_att_res.json()[0]
+    assert my_data["results_released"] is False
+    assert Decimal(str(my_data["score"])) == Decimal("0.00")
+    assert my_data["passed"] is False
+
+
+@pytest.mark.asyncio
+async def test_submission_queue_aggregate_counts_invariant_to_filters(
+    client: AsyncClient, db_session: AsyncSession, assessment_fixture: dict
+):
+    teacher = assessment_fixture["teacher"]
+    student = assessment_fixture["student"]
+    lecture = assessment_fixture["lecture"]
+
+    assignment = Assignment(
+        lecture_id=lecture.id,
+        title="Queue Filter Test Assignment",
+        instructions="Testing count invariance",
+        max_marks=50,
+        deadline=utc_now() + timedelta(days=2),
+        is_published=True,
+    )
+    db_session.add(assignment)
+    await db_session.commit()
+
+    # Student submits assignment
+    await client.post(
+        f"/api/v1/assessment/assignments/{assignment.id}/submissions",
+        json={"student_content": "Queue count test submission"},
+        headers=auth_header(student),
+    )
+
+    # Teacher gets queue without filter
+    q_all = await client.get(
+        f"/api/v1/assessment/assignments/{assignment.id}/submissions",
+        headers=auth_header(teacher),
+    )
+    assert q_all.status_code == 200
+    all_data = q_all.json()
+    assert all_data["submitted_count"] >= 1
+    assert all_data["pending_count"] >= 1
+    assert all_data["missing_count"] == max(0, all_data["total_enrolled"] - all_data["submitted_count"])
+
+    # Teacher gets queue filtered by status=evaluated (where 0 rows match)
+    q_eval = await client.get(
+        f"/api/v1/assessment/assignments/{assignment.id}/submissions?status=evaluated",
+        headers=auth_header(teacher),
+    )
+    assert q_eval.status_code == 200
+    eval_data = q_eval.json()
+    assert len(eval_data["submissions"]) == 0
+    # True aggregate header counts must NOT distort to 0 when status_filter is applied
+    assert eval_data["submitted_count"] == all_data["submitted_count"]
+    assert eval_data["pending_count"] == all_data["pending_count"]
+    assert eval_data["missing_count"] == all_data["missing_count"]
+
+
+@pytest.mark.asyncio
+async def test_resubmission_allowed_when_teacher_requests_resubmission(
+    client: AsyncClient, db_session: AsyncSession, assessment_fixture: dict
+):
+    teacher = assessment_fixture["teacher"]
+    student = assessment_fixture["student"]
+    lecture = assessment_fixture["lecture"]
+
+    assignment = Assignment(
+        lecture_id=lecture.id,
+        title="Resubmission Workflow Test",
+        instructions="Submit homework",
+        max_marks=100,
+        deadline=utc_now() + timedelta(days=2),
+        is_published=True,
+    )
+    db_session.add(assignment)
+    await db_session.commit()
+
+    # Student submits
+    sub_res = await client.post(
+        f"/api/v1/assessment/assignments/{assignment.id}/submissions",
+        json={"student_content": "Attempt 1 content"},
+        headers=auth_header(student),
+    )
+    sub_id = sub_res.json()["id"]
+
+    # Teacher grades it
+    await client.post(
+        f"/api/v1/assessment/submissions/{sub_id}/grade",
+        json={"obtained_marks": "40.00", "teacher_feedback": "Needs revision", "is_released": True},
+        headers=auth_header(teacher),
+    )
+
+    # Student tries to submit again -> blocked with 400 because it's evaluated
+    resub_blocked = await client.post(
+        f"/api/v1/assessment/assignments/{assignment.id}/submissions",
+        json={"student_content": "Illegal attempt 2"},
+        headers=auth_header(student),
+    )
+    assert resub_blocked.status_code == 400
+
+    # Teacher requests resubmission
+    req_res = await client.post(
+        f"/api/v1/assessment/submissions/{sub_id}/request-resubmission",
+        headers=auth_header(teacher),
+    )
+    assert req_res.status_code == 200
+
+    # Student submits again -> now permitted, creating attempt #2
+    resub_success = await client.post(
+        f"/api/v1/assessment/assignments/{assignment.id}/submissions",
+        json={"student_content": "Revised attempt 2 content"},
+        headers=auth_header(student),
+    )
+    assert resub_success.status_code == 201
+    assert resub_success.json()["attempt_number"] == 2
+    assert resub_success.json()["is_latest"] is True
+
+

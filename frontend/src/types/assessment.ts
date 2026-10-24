@@ -143,5 +143,7 @@ export interface AttemptResult {
   started_at: string;
   submitted_at?: string | null;
   solutions_released: boolean;
+  results_released?: boolean;
+  results_released_at?: string | null;
   answers?: AnswerDetailItem[] | null;
 }
